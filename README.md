@@ -1,7 +1,7 @@
 # Seasidememorycafe
 
 # ☕ Seaside Memory Café
-### 海边记忆小屋
+
 
 A pixel-art café management browser game. Play as a cat waiter delivering food to customers before they lose patience — all in a cozy seaside café setting.
 
