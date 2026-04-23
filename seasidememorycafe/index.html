@@ -15,6 +15,41 @@ body {
   overflow: hidden;
 }
 #wrap { position: relative; }
+#introVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 50;
+  background: #000;
+}
+#skipBar {
+  display: none;
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 51;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+}
+#skipBarTrack {
+  width: 180px;
+  height: 5px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 0;
+  margin: 5px auto 0;
+}
+#skipBarFill {
+  height: 100%;
+  width: 0%;
+  background: #fdd835;
+  transition: none;
+}
 canvas {
   display: block;
   image-rendering: pixelated;
@@ -167,6 +202,24 @@ canvas {
   transition: background 0.1s;
 }
 #gearBtn:hover { background: #3a4060; }
+#btnContinue {
+  position: absolute;
+  bottom: 26%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 36px;
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: bold;
+  background: #4caf50;
+  color: #fff;
+  border: 3px solid #2e7d32;
+  border-radius: 0;
+  cursor: pointer;
+  pointer-events: all;
+  box-shadow: 3px 3px 0 #000;
+  letter-spacing: 1px;
+}
 </style>
 </head>
 <body>
@@ -201,11 +254,21 @@ canvas {
     angrySfx.play();
     setTimeout(() => angrySfx.pause(), 1000);
   };
-  document.addEventListener('click', () => bgm.play(), { once: true });
+  document.addEventListener('click', () => {
+    const vid = document.getElementById('introVideo');
+    if (vid && inVideo) vid.play().catch(() => {});
+  }, { once: true });
 </script>
 
 <div id="wrap">
   <canvas id="c" width="960" height="540"></canvas>
+
+  <!-- Intro video -->
+  <video id="introVideo" src="assets/video.mp4" playsinline autoplay></video>
+  <div id="skipBar">
+    Hold SPACE to skip
+    <div id="skipBarTrack"><div id="skipBarFill"></div></div>
+  </div>
 
   <!-- Settings panel -->
   <div id="settingsPanel">
@@ -224,12 +287,22 @@ canvas {
       <button class="sp-btn" id="btnFullscreen">⛶ Fullscreen</button>
     </div>
     <div class="sp-row" style="padding:6px 12px">
+      <button class="sp-btn" id="btnEndDay">🌙 End Day</button>
+    </div>
+    <div class="sp-row" style="padding:6px 12px">
       <button class="sp-btn danger" id="btnRestart">🔄 Restart</button>
     </div>
   </div>
 
   <!-- Gear button -->
   <button id="gearBtn">⚙</button>
+
+  <!-- End video -->
+  <video id="endVideo" src="assets/end.mp4" playsinline style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:50;background:#000;"></video>
+
+  <!-- Continue button overlay (shown on game over) -->
+  <div id="continueOverlay" style="display:none;position:absolute;inset:0;z-index:40;pointer-events:none;"></div>
+
   <div id="overlay">
     <div id="orderCard">
       <div id="orderTicket">
@@ -852,7 +925,31 @@ function fillRoundRect(x, y, w, h, r) {
 let lastT = 0;
 let gameOver = false;
 let inMenu = true;
+let inVideo = true;
 let paused = false;
+let skipHold = 0;
+
+function endIntro() {
+  inVideo = false;
+  const vid = document.getElementById('introVideo');
+  vid.pause();
+  vid.style.display = 'none';
+  document.getElementById('skipBar').style.display = 'none';
+}
+
+// Spacebar hold-to-skip
+addEventListener('keydown', e => {
+  if (inVideo && e.code === 'Space' && !e.repeat) {
+    document.getElementById('skipBar').style.display = 'block';
+  }
+});
+addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    skipHold = 0;
+    document.getElementById('skipBarFill').style.width = '0%';
+    if (inVideo) document.getElementById('skipBar').style.display = 'none';
+  }
+});
 
 function restartGame() {
   gameOver = false;
@@ -874,6 +971,8 @@ function restartGame() {
   G.duck = { x: 680, y: 270, vx: 224, vy: 224, wt: 0, wd: 2.2, r: 22, clicks: 0, hidden: false, hideT: 0, scale: 1 };
   G.customers = TABLES.map(t => ({ tableId: t.id, food: FOODS[Math.floor(Math.random() * FOODS.length)], drift: 0, ds: rnd(1.5, 1.8) }));
   document.getElementById('overlay').classList.remove('show');
+  bgm.currentTime = 21;
+  bgm.play().catch(() => {});
   lastT = performance.now();
 }
 
@@ -941,32 +1040,53 @@ function drawGameOver() {
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.65)';
   ctx.fillRect(0, 0, W, H);
-  const bw = 420, bh = 160, bx = (W - bw) / 2, by = (H - bh) / 2;
+  const bw = 420, bh = 140, bx = (W - bw) / 2, by = (H - bh) / 2 - 40;
   ctx.fillStyle = '#fffde7';
   fillRoundRect(bx, by, bw, bh, 18);
   ctx.fillStyle = '#3e2a00';
   ctx.font = 'bold 32px "Courier New"';
   ctx.textAlign = 'center';
-  ctx.fillText('☕ Café Closed!', W / 2, by + 58);
+  ctx.fillText('☕ Café Closed!', W / 2, by + 52);
   ctx.font = 'bold 18px "Courier New"';
-  ctx.fillText(`Final Score: ${G.score}`, W / 2, by + 96);
-  ctx.font = '14px "Courier New"';
-  ctx.fillStyle = '#888';
-  ctx.fillText('Refresh to play again', W / 2, by + 130);
+  ctx.fillText(`Final Score: ${G.score}`, W / 2, by + 90);
   ctx.textAlign = 'left';
   ctx.restore();
+}
+
+function onGameOver() {
+  bgm.pause();
+  const cont = document.getElementById('continueOverlay');
+  cont.style.display = 'block';
+  cont.innerHTML = '<button id="btnContinue">▶ Continue</button>';
+  document.getElementById('btnContinue').addEventListener('click', () => {
+    cont.style.display = 'none';
+    setTimeout(() => {
+      const vid = document.getElementById('endVideo');
+      vid.style.display = 'block';
+      vid.play().catch(() => {});
+    }, 2000);
+  });
 }
 
 function loop(ts) {
   const dt = Math.min((ts - lastT) / 1000, 0.05);
   lastT = ts;
+  if (inVideo) {
+    if (keys[' '] || keys['space']) {
+      skipHold += dt;
+      document.getElementById('skipBarFill').style.width = Math.min(100, (skipHold / 3) * 100) + '%';
+      if (skipHold >= 3) endIntro();
+    }
+    requestAnimationFrame(loop);
+    return;
+  }
   if (inMenu)    { drawMenu(); requestAnimationFrame(loop); return; }
   if (gameOver)  { draw(); drawGameOver(); requestAnimationFrame(loop); return; }
   if (!paused && !G.orderOpen) {
     update(dt);
     G.timeLeft = Math.max(0, G.timeLeft - dt);
   }
-  if (G.score >= 250 || G.timeLeft <= 0) { gameOver = true; }
+  if ((G.score >= 250 || G.timeLeft <= 0) && !gameOver) { gameOver = true; onGameOver(); }
   draw();
   if (gameOver) { drawGameOver(); return; }
   requestAnimationFrame(loop);
@@ -984,6 +1104,7 @@ canvas.addEventListener('click', e => {
         my >= MENU_BTN.y && my <= MENU_BTN.y + MENU_BTN.h) {
       inMenu = false;
       lastT = performance.now();
+      bgm.play().catch(() => {});
     }
     return;
   }
@@ -1054,6 +1175,9 @@ loadAll(() => {
   lastT = performance.now();
   requestAnimationFrame(loop);
 
+  // Intro video ended handler (play already started via autoplay attr)
+  document.getElementById('introVideo').addEventListener('ended', endIntro);
+
   // Gear button toggles settings panel
   document.getElementById('gearBtn').addEventListener('click', () => {
     document.getElementById('settingsPanel').classList.toggle('open');
@@ -1095,6 +1219,12 @@ loadAll(() => {
       document.exitFullscreen && document.exitFullscreen();
       document.getElementById('btnFullscreen').textContent = '⛶ Fullscreen';
     }
+  });
+
+  // Fine Giornata
+  document.getElementById('btnEndDay').addEventListener('click', () => {
+    document.getElementById('settingsPanel').classList.remove('open');
+    if (!gameOver) { gameOver = true; onGameOver(); }
   });
 
   // Restart
